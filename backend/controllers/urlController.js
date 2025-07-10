@@ -1,4 +1,5 @@
-import UrlModel from '../models/UrlModel.js'
+import UrlModel from '../models/UrlModel.js';
+import redisClient from '../config/redisClient.js';
 
 function getCode(length = 6) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -15,6 +16,7 @@ const getShortUrl = async (req, res) => {
    try {
 
       const { longUrl } = req.body;
+      
       const urlObj = await UrlModel.findOne({longUrl});
 
       if (!urlObj) {
@@ -46,11 +48,19 @@ const getShortUrl = async (req, res) => {
 
 const getLongUrl = async (req, res) => {
    const shortCode =  req.params.code;
+
+   const cached = await redisClient.get(shortCode);
+   if (cached) {
+      return res.redirect(cached);
+   }
    try {
       const urlObj = await UrlModel.findOne({shortCode});
       if (!urlObj) {
          return res.json({sucess: false, message: "Not Found"});
       }
+
+      await redisClient.set(code, urlObj.longUrl, { EX: 3600 });
+      
       return res.redirect(urlObj.longUrl);
       
    } catch (error) {
